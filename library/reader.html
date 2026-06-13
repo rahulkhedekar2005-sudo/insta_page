@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <!-- FIX 4: user-scalable=yes allows native pinch zoom on mobile -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Reader — art & more</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+</head>
+<body class="reader-page">
+
+  <!-- LOADING -->
+  <div class="reader-loading" id="loadingScreen">
+    <div class="spinner"></div>
+    <p>Loading book…</p>
+  </div>
+
+  <!-- ===================== TOOLBAR ===================== -->
+  <div class="reader-toolbar" id="toolbar">
+
+    <a href="index.html" class="tb-btn" title="Back">
+      <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+      <span class="btn-label">Back</span>
+    </a>
+
+    <span class="tb-sep"></span>
+    <span class="tb-brand">art & more</span>
+    <span class="tb-title" id="tbTitle"></span>
+    <span class="tb-sep"></span>
+
+    <!-- MODE -->
+    <button class="tb-btn active" id="btnScroll">
+      <svg viewBox="0 0 24 24"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
+      <span class="btn-label">Scroll</span>
+    </button>
+    <button class="tb-btn" id="btnSwipe">
+      <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+      <span class="btn-label">Swipe</span>
+    </button>
+
+    <span class="tb-sep"></span>
+
+    <!-- ZOOM -->
+    <button class="tb-btn" id="btnZoomOut" title="Zoom out">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+      <span class="btn-label">−</span>
+    </button>
+    <span class="page-label" id="zoomLabel">100%</span>
+    <button class="tb-btn" id="btnZoomIn" title="Zoom in">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+      <span class="btn-label">+</span>
+    </button>
+    <!-- FIX 3: Fit to screen button -->
+    <button class="tb-btn" id="btnFit" title="Fit to screen">
+      <svg viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+      <span class="btn-label">Fit</span>
+    </button>
+
+    <span class="tb-sep"></span>
+
+    <!-- THEME -->
+    <select class="tb-select" id="themeSelect">
+      <option value="theme-white">White</option>
+      <option value="theme-light">Light</option>
+      <option value="theme-sepia">Sepia</option>
+      <option value="theme-dark">Dark</option>
+    </select>
+
+    <span class="tb-sep"></span>
+
+    <!-- BOOKMARK -->
+    <button class="tb-btn" id="btnBookmark" title="Bookmark page">
+      <svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+      <span class="btn-label">Bkmark</span>
+    </button>
+    <button class="tb-btn" id="btnBmPanel" title="Saved bookmarks">
+      <svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/><line x1="12" y1="7" x2="12" y2="13"/></svg>
+      <span class="btn-label">Saved</span>
+    </button>
+
+    <span class="tb-sep"></span>
+    <span class="page-label" id="pageCounter">— / —</span>
+
+  </div><!-- /toolbar -->
+
+  <!-- PDF VIEWPORT -->
+  <div class="reader-viewport mode-scroll theme-white" id="viewport"></div>
+
+  <!-- SWIPE ARROWS — fixed position -->
+  <button class="swipe-arrow arrow-left"  id="arrowLeft">&#8592;</button>
+  <button class="swipe-arrow arrow-right" id="arrowRight">&#8594;</button>
+
+  <!-- BOOKMARK PANEL -->
+  <div class="bm-panel" id="bmPanel">
+    <div class="bm-head">
+      <h3>Bookmarks</h3>
+      <button class="bm-close" id="bmClose">✕</button>
+    </div>
+    <ul class="bm-list" id="bmList"></ul>
+  </div>
+
+<script>
+// ============================================================
+//  PDF.js worker
+// ============================================================
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// ============================================================
+//  URL params
+// ============================================================
+const params   = new URLSearchParams(location.search);
+const pdfUrl   = params.get('pdf')   || '';
+const pdfTitle = params.get('title') || 'Book';
+
+document.title = pdfTitle + ' — art & more';
+document.getElementById('tbTitle').textContent = pdfTitle;
+
+// ============================================================
+//  State
+// ============================================================
+let pdfDoc      = null;
+let totalPages  = 0;
+let currentPage = 1;
+let scale       = 1.4;        // render scale
+let fitScale    = 1.4;        // computed fit-to-screen scale
+let mode        = 'scroll';
+let bookmarks   = [];
+let rendering   = false;      // guard against overlapping renders
+
+const BM_KEY = 'bm__' + pdfTitle;
+try { bookmarks = JSON.parse(localStorage.getItem(BM_KEY) || '[]'); } catch(e){}
+
+// ============================================================
+//  DOM refs
+// ============================================================
+const vp          = document.getElementById('viewport');
+const loading     = document.getElementById('loadingScreen');
+const pageCounter = document.getElementById('pageCounter');
+const zoomLbl     = document.getElementById('zoomLabel');
+const btnScroll   = document.getElementById('btnScroll');
+const btnSwipe    = document.getElementById('btnSwipe');
+const btnBm       = document.getElementById('btnBookmark');
+const bmPanel     = document.getElementById('bmPanel');
+const bmList      = document.getElementById('bmList');
+const arrowL      = document.getElementById('arrowLeft');
+const arrowR      = document.getElementById('arrowRight');
+
+// ============================================================
+//  Compute fit scale from viewport size
+// ============================================================
+async function computeFitScale() {
+  if (!pdfDoc) return;
+  const page       = await pdfDoc.getPage(1);
+  const rawVP      = page.getViewport({ scale: 1 });
+  const available  = vp.clientWidth - 32;        // 16px padding each side
+  fitScale         = available / rawVP.width;
+  fitScale         = Math.max(0.3, Math.min(3.0, fitScale));
+}
+
+// ============================================================
+//  Load PDF
+// ============================================================
+async function loadPDF() {
+  if (!pdfUrl) {
+    loading.innerHTML = '<p style="color:#c33;">No PDF path specified.</p>';
+    return;
+  }
+  try {
+    pdfDoc     = await pdfjsLib.getDocument(pdfUrl).promise;
+    totalPages = pdfDoc.numPages;
+    await computeFitScale();
+    scale = fitScale;          // start fitted
+    updateZoomLabel();
+    updateCounter();
+    loading.style.display = 'none';
+    await renderAll();
+  } catch(err) {
+    loading.innerHTML =
+      '<p style="color:#c33;">Could not load PDF.<br><small>' + err.message + '</small></p>';
+  }
+}
+
+// ============================================================
+//  Render one page → canvas
+//  FIX 3: uses current `scale` variable every time it's called
+// ============================================================
+async function renderPageCanvas(pageNum) {
+  const page    = await pdfDoc.getPage(pageNum);
+  const pv      = page.getViewport({ scale: scale });   // always uses current scale
+  const canvas  = document.createElement('canvas');
+  canvas.width  = pv.width;
+  canvas.height = pv.height;
+  await page.render({ canvasContext: canvas.getContext('2d'), viewport: pv }).promise;
+  return canvas;
+}
+
+// ============================================================
+//  Render ALL pages (scroll mode)
+// ============================================================
+async function renderAll() {
+  if (rendering) return;
+  rendering = true;
+  vp.innerHTML = '';
+  vp.classList.remove('mode-swipe');
+  vp.classList.add('mode-scroll');
+  showArrows(false);
+
+  for (let i = 1; i <= totalPages; i++) {
+    const wrap   = makeWrap(i);
+    const canvas = await renderPageCanvas(i);
+    wrap.appendChild(canvas);
+    if (bookmarks.includes(i)) addDot(wrap);
+    vp.appendChild(wrap);
+  }
+
+  vp.addEventListener('scroll', onScrollTrack, { passive: true });
+  rendering = false;
+}
+
+// ============================================================
+//  Render ONE page (swipe mode)
+// ============================================================
+async function renderOne(pageNum) {
+  if (pageNum < 1 || pageNum > totalPages) return;
+  if (rendering) return;
+  rendering    = true;
+  currentPage  = pageNum;
+  vp.innerHTML = '';
+  vp.classList.remove('mode-scroll');
+  vp.classList.add('mode-swipe');
+  vp.removeEventListener('scroll', onScrollTrack);
+  showArrows(true);
+
+  const wrap   = makeWrap(pageNum);
+  wrap.style.margin = 'auto';
+  const canvas = await renderPageCanvas(pageNum);
+  wrap.appendChild(canvas);
+  if (bookmarks.includes(pageNum)) addDot(wrap);
+  vp.appendChild(wrap);
+
+  updateCounter();
+  updateBmBtn();
+  rendering = false;
+}
+
+// ============================================================
+//  Helpers
+// ============================================================
+function makeWrap(n) {
+  const w = document.createElement('div');
+  w.className = 'page-wrapper';
+  w.dataset.page = n;
+  return w;
+}
+function addDot(w) {
+  const d = document.createElement('div');
+  d.className = 'bm-dot';
+  w.appendChild(d);
+}
+function removeDot(w) {
+  const d = w && w.querySelector('.bm-dot');
+  if (d) d.remove();
+}
+function showArrows(show) {
+  arrowL.classList.toggle('visible', show);
+  arrowR.classList.toggle('visible', show);
+}
+function updateCounter() {
+  pageCounter.textContent = currentPage + ' / ' + totalPages;
+}
+function updateZoomLabel() {
+  zoomLbl.textContent = Math.round(scale * 100) + '%';
+}
+function updateBmBtn() {
+  btnBm.classList.toggle('active', bookmarks.includes(currentPage));
+}
+
+// ============================================================
+//  Scroll tracker
+// ============================================================
+function onScrollTrack() {
+  const wrappers = vp.querySelectorAll('.page-wrapper');
+  let best = currentPage, minD = Infinity;
+  const mid = vp.scrollTop + vp.clientHeight / 2;
+  wrappers.forEach(w => {
+    const d = Math.abs((w.offsetTop + w.clientHeight / 2) - mid);
+    if (d < minD) { minD = d; best = +w.dataset.page; }
+  });
+  if (best !== currentPage) {
+    currentPage = best;
+    updateCounter();
+    updateBmBtn();
+  }
+}
+
+function scrollToPage(n) {
+  const w = vp.querySelector('.page-wrapper[data-page="' + n + '"]');
+  if (w) w.scrollIntoView({ block: 'start' });
+}
+
+// ============================================================
+//  MODE
+// ============================================================
+btnScroll.addEventListener('click', () => {
+  if (mode === 'scroll') return;
+  mode = 'scroll';
+  btnScroll.classList.add('active');
+  btnSwipe.classList.remove('active');
+  renderAll();
+});
+
+btnSwipe.addEventListener('click', () => {
+  if (mode === 'swipe') return;
+  mode = 'swipe';
+  btnSwipe.classList.add('active');
+  btnScroll.classList.remove('active');
+  renderOne(currentPage);
+});
+
+// ============================================================
+//  SWIPE navigation
+// ============================================================
+arrowL.addEventListener('click', () => { if (!rendering) renderOne(currentPage - 1); });
+arrowR.addEventListener('click', () => { if (!rendering) renderOne(currentPage + 1); });
+
+// Touch swipe gesture (horizontal)
+let touchStartX = 0, touchStartY = 0;
+vp.addEventListener('touchstart', e => {
+  touchStartX = e.touches[0].clientX;
+  touchStartY = e.touches[0].clientY;
+}, { passive: true });
+
+vp.addEventListener('touchend', e => {
+  if (mode !== 'swipe') return;
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = Math.abs(e.changedTouches[0].clientY - touchStartY);
+  // Only register horizontal swipes (not scrolls)
+  if (Math.abs(dx) > 50 && dy < 40) {
+    if (dx > 0) renderOne(currentPage - 1);
+    else        renderOne(currentPage + 1);
+  }
+}, { passive: true });
+
+// Keyboard
+document.addEventListener('keydown', e => {
+  if (mode !== 'swipe') return;
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown') renderOne(currentPage + 1);
+  if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   renderOne(currentPage - 1);
+});
+
+// ============================================================
+//  ZOOM — FIX 3: re-renders canvas with new scale
+//  Uses a debounce to avoid flooding on repeated taps
+// ============================================================
+let zoomTimer = null;
+
+function applyZoom() {
+  updateZoomLabel();
+  if (mode === 'swipe') {
+    renderOne(currentPage);
+  } else {
+    const saved = currentPage;
+    renderAll().then(() => scrollToPage(saved));
+  }
+}
+
+document.getElementById('btnZoomIn').addEventListener('click', () => {
+  scale = Math.min(3.5, +(scale + 0.2).toFixed(2));
+  clearTimeout(zoomTimer);
+  zoomTimer = setTimeout(applyZoom, 80);   // slight debounce for fast taps
+});
+
+document.getElementById('btnZoomOut').addEventListener('click', () => {
+  scale = Math.max(0.4, +(scale - 0.2).toFixed(2));
+  clearTimeout(zoomTimer);
+  zoomTimer = setTimeout(applyZoom, 80);
+});
+
+// FIX 3: Fit-to-screen button
+document.getElementById('btnFit').addEventListener('click', async () => {
+  await computeFitScale();
+  scale = fitScale;
+  clearTimeout(zoomTimer);
+  zoomTimer = setTimeout(applyZoom, 80);
+});
+
+// ============================================================
+//  THEME
+// ============================================================
+document.getElementById('themeSelect').addEventListener('change', function() {
+  vp.classList.remove('theme-white','theme-light','theme-sepia','theme-dark');
+  vp.classList.add(this.value);
+});
+
+// ============================================================
+//  BOOKMARKS
+// ============================================================
+btnBm.addEventListener('click', () => {
+  const idx = bookmarks.indexOf(currentPage);
+  if (idx === -1) bookmarks.push(currentPage);
+  else            bookmarks.splice(idx, 1);
+  bookmarks.sort((a, b) => a - b);
+  localStorage.setItem(BM_KEY, JSON.stringify(bookmarks));
+  updateBmBtn();
+  renderBmList();
+  // update dot on existing wrapper without re-render
+  const w = vp.querySelector('.page-wrapper[data-page="' + currentPage + '"]');
+  if (w) { removeDot(w); if (bookmarks.includes(currentPage)) addDot(w); }
+});
+
+document.getElementById('btnBmPanel').addEventListener('click', () => {
+  bmPanel.classList.toggle('open');
+  renderBmList();
+});
+
+document.getElementById('bmClose').addEventListener('click', () => {
+  bmPanel.classList.remove('open');
+});
+
+function renderBmList() {
+  if (!bookmarks.length) {
+    bmList.innerHTML = '<li class="bm-empty">No bookmarks yet.</li>';
+    return;
+  }
+  bmList.innerHTML = bookmarks.map(p =>
+    '<li class="bm-item">' +
+      '<span onclick="goPage(' + p + ')">Page ' + p + '</span>' +
+      '<button onclick="delBm(' + p + ')">✕</button>' +
+    '</li>'
+  ).join('');
+}
+
+function goPage(p) {
+  bmPanel.classList.remove('open');
+  if (mode === 'swipe') {
+    renderOne(p);
+  } else {
+    scrollToPage(p);
+    currentPage = p;
+    updateCounter();
+    updateBmBtn();
+  }
+}
+
+function delBm(p) {
+  bookmarks = bookmarks.filter(b => b !== p);
+  localStorage.setItem(BM_KEY, JSON.stringify(bookmarks));
+  renderBmList();
+  updateBmBtn();
+  const w = vp.querySelector('.page-wrapper[data-page="' + p + '"]');
+  if (w) removeDot(w);
+}
+
+// ============================================================
+//  Re-compute fit on resize
+// ============================================================
+window.addEventListener('resize', async () => {
+  await computeFitScale();
+  // If currently at fit scale, follow the new fit
+  if (Math.abs(scale - fitScale) < 0.05) {
+    scale = fitScale;
+    updateZoomLabel();
+    const saved = currentPage;
+    if (mode === 'swipe') renderOne(currentPage);
+    else renderAll().then(() => scrollToPage(saved));
+  }
+});
+
+// ============================================================
+//  Init
+// ============================================================
+updateZoomLabel();
+loadPDF();
+renderBmList();
+</script>
+</body>
+</html>

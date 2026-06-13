@@ -1,0 +1,214 @@
+/* ============================================================
+   RESET & ROOT
+============================================================ */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --font-display: 'Georgia', serif;
+  --font-body: 'Segoe UI', system-ui, sans-serif;
+  --radius-card: 12px;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+}
+
+body {
+  font-family: var(--font-body);
+  background: #000;
+  overflow: hidden; /* full-screen hero */
+}
+
+/* IG Logo */
+.ig-logo-link {
+  display: inline-block;
+  line-height: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.ig-logo-link:hover {
+  opacity: 0.8;
+  transform: scale(1.08);
+}
+
+.ig-logo {
+  width: 38px;
+  height: 38px;
+  object-fit: cover;
+  border-radius: 50%;
+  display: block;
+}
+
+
+/* ============================================================
+   ANIMATED BACKGROUND
+============================================================ */
+#bgCanvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+}
+
+/* ============================================================
+   HERO — full screen
+============================================================ */
+.hero {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  z-index: 1;
+  overflow: hidden;
+}
+
+.hero-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+}
+
+.hero-desktop { display: block; }
+.hero-mobile  { display: none;  }
+
+/* Dark overlay so text is readable */
+.hero-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 36px;
+  background: rgba(0, 0, 0, 0.40);
+}
+
+.hero-title {
+  font-family: var(--font-display);
+  font-size: clamp(2.8rem, 6vw, 6rem);
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: 0.05em;
+  text-shadow: 0 4px 28px rgba(0,0,0,0.7);
+  line-height: 1;
+  text-align: center;
+}
+
+/* ============================================================
+   PORTAL CARDS — side by side on the image
+============================================================ */
+.portal-row {
+  display: flex;
+  flex-direction: row;
+  gap: 28px;
+  align-items: center;
+  justify-content: center;
+}
+
+.portal-card {
+  /* text only, card style */
+  font-family: var(--font-display);
+  font-size: clamp(1.1rem, 2vw, 1.5rem);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #ffffff;
+  text-decoration: none;
+
+  /* card box */
+  padding: 18px 48px;
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(12px);
+  border: 2.5px solid rgba(255, 255, 255, 0.7);
+  border-radius: var(--radius-card);
+
+  /* hatching shadow */
+  position: relative;
+  transform-style: preserve-3d;
+
+  transition: transform 0.25s ease, background 0.25s ease, border-color 0.25s ease;
+}
+
+.portal-card::after {
+  content: '';
+  position: absolute;
+  top: 7px;
+  left: 7px;
+  right: -7px;
+  bottom: -7px;
+  border-radius: var(--radius-card);
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(255, 255, 255, 0.15),
+    rgba(255, 255, 255, 0.15) 2.9px,
+    transparent 2.9px,
+    transparent 8px
+  );
+  z-index: -1;
+  transform: translateZ(-1px);
+  transition: all 0.25s ease;
+}
+
+.portal-card:hover {
+  transform: translateY(-6px);
+  background: rgba(255, 255, 255, 0.22);
+  border-color: #ffffff;
+}
+
+.portal-card:hover::after {
+  top: 12px;
+  left: 12px;
+  right: -12px;
+  bottom: -12px;
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(255, 255, 255, 0.25),
+    rgba(255, 255, 255, 0.25) 2.9px,
+    transparent 2.9px,
+    transparent 8px
+  );
+}
+
+/* ============================================================
+   RESPONSIVE
+============================================================ */
+@media (max-width: 768px) {
+  body { overflow: auto; }
+
+  .hero { height: 100svh; }
+
+  .hero-desktop { display: none !important; }
+  .hero-mobile  { display: block !important; }
+
+  .hero-title { font-size: 2.2rem; }
+
+  .portal-row {
+    gap: 16px;
+  }
+
+  .portal-card {
+    font-size: 1rem;
+    padding: 14px 32px;
+  }
+}
+
+@media (max-width: 420px) {
+  .portal-row {
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .portal-card {
+    width: 80vw;
+    text-align: center;
+    padding: 14px 20px;
+  }
+}
