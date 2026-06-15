@@ -30,11 +30,11 @@
     <span class="tb-sep"></span>
 
     <!-- MODE -->
-    <button class="tb-btn active" id="btnScroll">
+    <button class="tb-btn" id="btnScroll">
       <svg viewBox="0 0 24 24"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
       <span class="btn-label">Scroll</span>
     </button>
-    <button class="tb-btn" id="btnSwipe">
+    <button class="tb-btn active" id="btnSwipe">
       <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
       <span class="btn-label">Swipe</span>
     </button>
@@ -85,7 +85,7 @@
   </div><!-- /toolbar -->
 
   <!-- PDF VIEWPORT -->
-  <div class="reader-viewport mode-scroll theme-white" id="viewport"></div>
+  <div class="reader-viewport mode-swipe theme-white" id="viewport"></div>
 
   <!-- SWIPE ARROWS — fixed position -->
   <button class="swipe-arrow arrow-left"  id="arrowLeft">&#8592;</button>
@@ -125,7 +125,7 @@ let totalPages  = 0;
 let currentPage = 1;
 let scale       = 1.4;        // render scale
 let fitScale    = 1.4;        // computed fit-to-screen scale
-let mode        = 'scroll';
+let mode        = 'swipe';
 let bookmarks   = [];
 let rendering   = false;      // guard against overlapping renders
 
@@ -175,7 +175,7 @@ async function loadPDF() {
     updateZoomLabel();
     updateCounter();
     loading.style.display = 'none';
-    await renderAll();
+    await renderOne(1);        // start in swipe mode
   } catch(err) {
     loading.innerHTML =
       '<p style="color:#c33;">Could not load PDF.<br><small>' + err.message + '</small></p>';
