@@ -123,7 +123,7 @@ document.getElementById('tbTitle').textContent = pdfTitle;
 let pdfDoc      = null;
 let totalPages  = 0;
 let currentPage = 1;
-let scale       = 1.4;        // render scale
+let scale       = 1.5;        // render scale (default 150%)
 let fitScale    = 1.4;        // computed fit-to-screen scale
 let mode        = 'swipe';
 let bookmarks   = [];
@@ -171,7 +171,7 @@ async function loadPDF() {
     pdfDoc     = await pdfjsLib.getDocument(pdfUrl).promise;
     totalPages = pdfDoc.numPages;
     await computeFitScale();
-    scale = fitScale;          // start fitted
+    scale = 1.5;               // start at 150% zoom
     updateZoomLabel();
     updateCounter();
     loading.style.display = 'none';
